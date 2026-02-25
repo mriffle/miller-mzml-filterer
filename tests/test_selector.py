@@ -71,6 +71,19 @@ def test_resolve_precursors_chain_and_sort(capsys: pytest.CaptureFixture[str]) -
     assert "scan=9999" in err
 
 
+def test_resolve_precursors_self_ref_warns_dia(capsys: pytest.CaptureFixture[str]) -> None:
+    source_order = ["scan=1001", "scan=1002"]
+    precursor_map = {
+        "scan=1001": None,
+        "scan=1002": "scan=1002",
+    }
+    result = resolve_precursors(["scan=1002"], precursor_map, source_order)
+    assert result == ["scan=1002"]
+    err = capsys.readouterr().err
+    assert "self-referential" in err
+    assert "likely due to DIA data" in err
+
+
 def test_resolve_precursors_handles_cycle_and_already_selected() -> None:
     precursor_map: dict[str, str | None] = {
         "scan=1": "scan=2",

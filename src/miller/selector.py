@@ -43,12 +43,17 @@ def resolve_precursors(
     source_order: list[str],
 ) -> list[str]:
     selected_set = set(selected)
+    added_precursors = 0
+    self_ref_count = 0
     for scan_id in list(selected):
         current = scan_id
         seen: set[str] = set()
         while True:
             precursor = precursor_map.get(current)
             if precursor is None:
+                break
+            if precursor == current:
+                self_ref_count += 1
                 break
             if precursor in seen:
                 break
@@ -63,7 +68,14 @@ def resolve_precursors(
                 current = precursor
                 continue
             selected_set.add(precursor)
+            added_precursors += 1
             current = precursor
+    if self_ref_count > 0 and added_precursors == 0:
+        print(
+            "Warning: precursor spectrumRef values are self-referential, so no precursor scans were added. "
+            "This is likely due to DIA data.",
+            file=sys.stderr,
+        )
     return [scan_id for scan_id in source_order if scan_id in selected_set]
 
 
