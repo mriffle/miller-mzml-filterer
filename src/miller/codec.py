@@ -50,7 +50,8 @@ def decode_binary_data_array(binary_data_array: etree._Element) -> NDArray[Any]:
     dtype = _dtype_for_array(binary_data_array)
     if not payload:
         return np.array([], dtype=dtype)
-    return np.frombuffer(payload, dtype=dtype).copy()
+    decoded: NDArray[Any] = np.frombuffer(payload, dtype=dtype).copy()
+    return decoded
 
 
 def _remove_compression_cv(binary_data_array: etree._Element) -> None:
