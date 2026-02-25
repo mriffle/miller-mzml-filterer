@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          pip install -e ".[dev]"
+      - name: Lint
+        run: |
+          . .venv/bin/activate
+          ruff check src/ tests/
+      - name: Type check
+        run: |
+          . .venv/bin/activate
+          mypy src/
+      - name: Test
+        run: |
+          . .venv/bin/activate
+          pytest --cov=miller --cov-report=xml --cov-report=json --cov-report=term-missing --cov-fail-under=90 tests/
+      - name: Enforce branch coverage on selector/validation
+        run: |
+          . .venv/bin/activate
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path("coverage.json").read_text(encoding="utf-8"))
+          required = ["src/miller/selector.py", "src/miller/validation.py"]
+          failures = []
+          for filename in required:
+              summary = report["files"][filename]["summary"]
+              if summary["covered_branches"] != summary["num_branches"]:
+                  failures.append(
+                      f"{filename}: {summary['covered_branches']}/{summary['num_branches']} branches covered"
+                  )
+          if failures:
+              raise SystemExit("Branch coverage requirement failed:\n" + "\n".join(failures))
+          PY
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.python-version }}
+          path: |
+            coverage.xml
+            coverage.json
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t miller .
+      - name: Run tests in container
+        run: docker run --entrypoint pytest miller --cov=miller --cov-fail-under=90 tests/
+      - name: Verify help
+        run: docker run miller --help
