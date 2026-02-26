@@ -122,9 +122,11 @@ def select_scan_ids(
     elif scan_percent is not None:
         selected = select_random_percent(eligible_ids, scan_percent, seed)
     else:
-        assert requested_scan_ids is not None
-        selected = select_explicit(source_order, list(requested_scan_ids))
-        selected = [scan_id for scan_id in selected if scan_id not in excluded_set]
+        if requested_scan_ids is not None:
+            selected = select_explicit(source_order, list(requested_scan_ids))
+            selected = [scan_id for scan_id in selected if scan_id not in excluded_set]
+        else:
+            selected = list(eligible_ids)
 
     if not include_precursors:
         return [scan_id for scan_id in selected if scan_id not in excluded_set]

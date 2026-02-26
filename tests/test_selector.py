@@ -175,6 +175,21 @@ def test_select_scan_ids_explicit_respects_exclude() -> None:
     assert selected == ["scan=1001"]
 
 
+def test_select_scan_ids_exclude_only_mode() -> None:
+    infos = _infos()
+    selected = select_scan_ids(
+        infos,
+        scan_count=None,
+        scan_percent=None,
+        requested_scan_ids=None,
+        ms_levels=None,
+        excluded_scan_ids=["scan=1002", "scan=1004"],
+        include_precursors=False,
+        seed=42,
+    )
+    assert selected == ["scan=1001", "scan=1003", "scan=1005", "scan=1006"]
+
+
 def test_select_scan_ids_random_no_eligible_after_exclude() -> None:
     infos = _infos()
     with pytest.raises(ScanCountError, match="No eligible scans available"):

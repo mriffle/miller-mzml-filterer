@@ -142,10 +142,12 @@ def _expected_ids(
         picked = set(random.Random(seed).sample(eligible, count))
         selected = [scan_id for scan_id in stats.ordered_scan_ids if scan_id in picked]
     else:
-        assert include_ids is not None
-        include_set = set(include_ids)
-        selected = [scan_id for scan_id in stats.ordered_scan_ids if scan_id in include_set]
-        selected = [scan_id for scan_id in selected if scan_id not in excluded_set]
+        if include_ids is None:
+            selected = [scan_id for scan_id in stats.ordered_scan_ids if scan_id not in excluded_set]
+        else:
+            include_set = set(include_ids)
+            selected = [scan_id for scan_id in stats.ordered_scan_ids if scan_id in include_set]
+            selected = [scan_id for scan_id in selected if scan_id not in excluded_set]
 
     if include_precursors:
         selected = _resolve_precursors_locally(selected, stats.precursor_by_id, stats.ordered_scan_ids)
@@ -271,6 +273,20 @@ def _assert_ms1_precursors_match_output_ms2(
                 seed=23,
                 exclude_ids=stats.ms1_ids[:2] + stats.ms2_ids[:2],
                 include_precursors=False,
+            ),
+            lambda stats: stats.is_indexed,
+            "source",
+        ),
+        (
+            "exclude_only_all_minus_excluded",
+            lambda stats, tmp: [
+                "--scan-exclude-file",
+                str(_write_scan_file(tmp / "exclude.txt", stats.ordered_scan_ids[:3])),
+            ],
+            lambda stats, tmp: _expected_ids(
+                stats,
+                exclude_ids=stats.ordered_scan_ids[:3],
+                include_precursors=True,
             ),
             lambda stats: stats.is_indexed,
             "source",

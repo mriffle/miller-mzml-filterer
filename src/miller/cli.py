@@ -73,7 +73,7 @@ def main(
 ) -> None:
     """Generate a subset mzML file for testing."""
     try:
-        validate_selection_mode(scan_count, scan_percent, scan_include_file, ms_level)
+        validate_selection_mode(scan_count, scan_percent, scan_include_file, scan_exclude_file, ms_level)
         ensure_readable_input(input_path)
         ensure_writable_output(output_path)
 

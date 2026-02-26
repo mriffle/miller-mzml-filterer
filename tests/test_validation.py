@@ -19,22 +19,28 @@ from miller.validation import (
 
 def test_validate_selection_mode_requires_exactly_one() -> None:
     with pytest.raises(UsageError):
-        validate_selection_mode(None, None, None, None)
+        validate_selection_mode(None, None, None, None, None)
     with pytest.raises(UsageError):
-        validate_selection_mode(1, 10.0, None, None)
+        validate_selection_mode(1, 10.0, None, None, None)
     with pytest.raises(UsageError):
-        validate_selection_mode(1, None, Path("x.txt"), None)
+        validate_selection_mode(1, None, Path("x.txt"), None, None)
 
 
 def test_validate_selection_mode_rejects_ms_level_with_include_file() -> None:
     with pytest.raises(UsageError):
-        validate_selection_mode(None, None, Path("in.txt"), "2")
+        validate_selection_mode(None, None, Path("in.txt"), None, "2")
 
 
 def test_validate_selection_mode_accepts_valid_modes() -> None:
-    validate_selection_mode(1, None, None, None)
-    validate_selection_mode(None, 25.0, None, "2")
-    validate_selection_mode(None, None, Path("in.txt"), None)
+    validate_selection_mode(1, None, None, None, None)
+    validate_selection_mode(None, 25.0, None, None, "2")
+    validate_selection_mode(None, None, Path("in.txt"), None, None)
+    validate_selection_mode(None, None, None, Path("exclude.txt"), None)
+
+
+def test_validate_selection_mode_rejects_ms_level_with_exclude_only() -> None:
+    with pytest.raises(UsageError):
+        validate_selection_mode(None, None, None, Path("exclude.txt"), "2")
 
 
 def test_ensure_writable_output_parent_missing(tmp_path: Path) -> None:

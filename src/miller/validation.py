@@ -12,20 +12,31 @@ def validate_selection_mode(
     scan_count: int | None,
     scan_percent: float | None,
     scan_include_file: Path | None,
+    scan_exclude_file: Path | None,
     ms_level: str | None,
 ) -> None:
     has_count = scan_count is not None
     has_percent = scan_percent is not None
     has_include_file = scan_include_file is not None
+    has_exclude_file = scan_exclude_file is not None
     selected_modes = sum([has_count, has_percent, has_include_file])
-    if selected_modes != 1:
+    if selected_modes > 1:
         raise UsageError(
             "Exactly one of --scan-count, --scan-percent, or --scan-include-file must be provided."
+        )
+    if selected_modes == 0 and not has_exclude_file:
+        raise UsageError(
+            "Provide one of --scan-count, --scan-percent, --scan-include-file, "
+            "or use --scan-exclude-file alone."
         )
     if has_include_file and ms_level:
         raise UsageError(
             "--ms-level is only valid with random selection (--scan-count or --scan-percent) "
             "and cannot be used with --scan-include-file."
+        )
+    if selected_modes == 0 and has_exclude_file and ms_level:
+        raise UsageError(
+            "--ms-level is only valid with random selection (--scan-count or --scan-percent)."
         )
 
 

@@ -86,6 +86,12 @@ EOF
 miller --scan-count 50 --scan-exclude-file subsets/exclude_scans.txt data/input.mzML subsets/input.subset_50_excl.mzML
 ```
 
+Exclude-only mode (all scans except excluded):
+
+```bash
+miller --scan-exclude-file subsets/exclude_scans.txt data/input.mzML subsets/input.all_minus_excluded.mzML
+```
+
 Disable precursor inclusion (output contains exactly the selected scans):
 
 ```bash
@@ -154,7 +160,7 @@ Positional arguments:
 - `INPUT` (required): path to the source mzML file (indexed or non-indexed).
 - `OUTPUT` (required): path for the output mzML file.
 
-Selection mode (exactly one required):
+Selection mode:
 
 - `--scan-count INTEGER`: randomly select N scans uniformly from the eligible pool.
   - Output order is the original file order, not the random draw order.
@@ -166,12 +172,17 @@ Selection mode (exactly one required):
   - Accepts either bare numbers (`1001`) or prefixed IDs (`scan=1001`).
   - Output order follows source file order.
   - Incompatible with `--scan-count` and `--scan-percent`.
+- `--scan-exclude-file PATH` can also be used alone (no include/count/percent), which means:
+  - Start from all scans in input.
+  - Exclude listed scans.
+  - Then apply precursor inclusion behavior and final exclusion.
 
 Exclusion file:
 
 - `--scan-exclude-file PATH`: file with one scan ID per line to exclude.
   - Excluded scans are removed from random candidate pools and from final output.
   - Can be combined with random selection or include-file selection.
+  - Can be used by itself to produce \"all scans except excluded scans\" output.
   - If the same scan appears in both include and exclude files, the program exits with usage error.
 
 MS-level filtering:
@@ -179,7 +190,7 @@ MS-level filtering:
 - `--ms-level TEXT`: comma-separated MS levels (e.g. `1`, `2`, `1,2`).
   - Valid only with random selection (`--scan-count` or `--scan-percent`).
   - Applies only to the initial random selection pool. Precursor inclusion can add MS levels not listed here.
-  - Using `--ms-level` with `--scan-include-file` is a usage error.
+  - Using `--ms-level` with `--scan-include-file` or exclude-only mode is a usage error.
 
 Precursor inclusion:
 

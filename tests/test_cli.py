@@ -122,6 +122,42 @@ def test_cli_neither_selection_option(nonindexed_fixture: Path, tmp_path: Path) 
     assert result.exit_code == 2
 
 
+def test_cli_exclude_only_mode(nonindexed_fixture: Path, tmp_path: Path) -> None:
+    exclude_file = tmp_path / "exclude.txt"
+    _write_scan_file(exclude_file, ["1001", "1002"])
+    out = tmp_path / "out.mzML"
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        ["--scan-exclude-file", str(exclude_file), "--no-include-precursors", str(nonindexed_fixture), str(out)],
+    )
+    assert result.exit_code == 0, result.output
+    subset = MzMLSource(out)
+    out_ids = [scan.scan_id for scan in subset.scan_infos]
+    assert "scan=1001" not in out_ids
+    assert "scan=1002" not in out_ids
+    assert len(out_ids) == len(MzMLSource(nonindexed_fixture).scan_infos) - 2
+
+
+def test_cli_ms_level_with_exclude_only_error(nonindexed_fixture: Path, tmp_path: Path) -> None:
+    exclude_file = tmp_path / "exclude.txt"
+    _write_scan_file(exclude_file, ["1001"])
+    out = tmp_path / "out.mzML"
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "--scan-exclude-file",
+            str(exclude_file),
+            "--ms-level",
+            "2",
+            str(nonindexed_fixture),
+            str(out),
+        ],
+    )
+    assert result.exit_code == 2
+
+
 def test_cli_invalid_input(tmp_path: Path) -> None:
     out = tmp_path / "out.mzML"
     runner = CliRunner()

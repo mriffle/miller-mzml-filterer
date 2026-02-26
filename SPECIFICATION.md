@@ -28,7 +28,7 @@ Production mzML files are often hundreds of MB to multiple GB. Automated workflo
 - Required positional args:
   - `input`: source mzML path.
   - `output`: output mzML path.
-- Exactly one selection mode:
+- Selection modes:
   - `--scan-count N`
   - `--scan-percent P`
   - `--scan-include-file PATH` (one scan ID per line, no header)
@@ -56,6 +56,9 @@ Production mzML files are often hundreds of MB to multiple GB. Automated workflo
   - Output order follows source order.
   - If both include and exclude files are provided, both are honored.
   - If any scan ID appears in both include and exclude files, fail with usage error.
+- Exclude-only mode:
+  - If none of `--scan-count`, `--scan-percent`, `--scan-include-file` are supplied, but `--scan-exclude-file` is supplied, start from all scans and remove exclusions.
+  - This mode cannot be combined with `--ms-level`.
 
 ### 2.3 Precursor Inclusion
 
