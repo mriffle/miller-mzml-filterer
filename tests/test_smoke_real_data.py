@@ -158,6 +158,37 @@ def _write_scan_file(path: Path, scan_ids: list[str]) -> Path:
     return path
 
 
+def _count_by_ms_level(source: MzMLSource) -> dict[int, int]:
+    counts: dict[int, int] = {}
+    for scan in source.scan_infos:
+        if scan.ms_level is None:
+            continue
+        counts[scan.ms_level] = counts.get(scan.ms_level, 0) + 1
+    return counts
+
+
+def _assert_ms1_precursors_match_output_ms2(
+    output_source: MzMLSource,
+    stats: SourceStats,
+) -> None:
+    output_ids = {scan.scan_id for scan in output_source.scan_infos}
+    output_ms2_ids = [scan.scan_id for scan in output_source.scan_infos if scan.ms_level == 2]
+    output_ms1_ids = {scan.scan_id for scan in output_source.scan_infos if scan.ms_level == 1}
+
+    expected_parent_ms1_ids = {
+        precursor
+        for scan_id in output_ms2_ids
+        for precursor in [stats.precursor_by_id.get(scan_id)]
+        if precursor is not None
+        and precursor != scan_id
+        and stats.ms_level_by_id.get(precursor) == 1
+    }
+
+    assert expected_parent_ms1_ids
+    assert expected_parent_ms1_ids.issubset(output_ids)
+    assert output_ms1_ids == expected_parent_ms1_ids
+
+
 @pytest.mark.parametrize(
     ("name", "args_builder", "expected_builder", "expect_indexed", "expect_compression"),
     [
@@ -344,3 +375,77 @@ def test_smoke_include_exclude_overlap_errors(smoke_stats: SourceStats, tmp_path
     )
     assert result.exit_code == 2
     assert "overlap" in result.output
+
+
+def test_smoke_percent_ms2_with_precursors_counts(smoke_stats: SourceStats, tmp_path: Path) -> None:
+    output_path = tmp_path / "pct_ms2_with_precursors.mzML"
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "--scan-percent",
+            "50",
+            "--ms-level",
+            "2",
+            "--seed",
+            "11",
+            str(smoke_stats.input_path),
+            str(output_path),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    output_source = MzMLSource(output_path)
+    counts = _count_by_ms_level(output_source)
+    assert counts.get(2, 0) == 5
+    assert counts.get(1, 0) == 5
+    assert len(output_source.scan_infos) == 10
+    _assert_ms1_precursors_match_output_ms2(output_source, smoke_stats)
+
+
+def test_smoke_percent_ms2_no_precursors_counts(smoke_stats: SourceStats, tmp_path: Path) -> None:
+    output_path = tmp_path / "pct_ms2_no_precursors.mzML"
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "--scan-percent",
+            "50",
+            "--ms-level",
+            "2",
+            "--seed",
+            "11",
+            "--no-include-precursors",
+            str(smoke_stats.input_path),
+            str(output_path),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    output_source = MzMLSource(output_path)
+    counts = _count_by_ms_level(output_source)
+    assert counts.get(2, 0) == 5
+    assert counts.get(1, 0) == 0
+    assert len(output_source.scan_infos) == 5
+
+
+def test_smoke_percent_ms1_only_counts(smoke_stats: SourceStats, tmp_path: Path) -> None:
+    output_path = tmp_path / "pct_ms1_only.mzML"
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "--scan-percent",
+            "50",
+            "--ms-level",
+            "1",
+            "--seed",
+            "11",
+            str(smoke_stats.input_path),
+            str(output_path),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    output_source = MzMLSource(output_path)
+    counts = _count_by_ms_level(output_source)
+    assert counts.get(1, 0) == 5
+    assert counts.get(2, 0) == 0
+    assert len(output_source.scan_infos) == 5
