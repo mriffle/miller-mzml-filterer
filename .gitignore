@@ -39,6 +39,3 @@ Thumbs.db
 
 # Local runtime artifacts
 *.log
-
-# Local test data directories
-test_data/

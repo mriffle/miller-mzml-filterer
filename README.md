@@ -235,6 +235,16 @@ pip install -e ".[dev]"
 .venv/bin/mypy src/
 ```
 
+Smoke tests:
+
+- `tests/test_smoke_real_data.py` uses `test_data/test_data.mzML`.
+- These smoke tests run automatically with the rest of the suite in GitHub Actions because they live under `tests/`.
+- Run only smoke tests locally:
+
+```bash
+.venv/bin/pytest tests/test_smoke_real_data.py
+```
+
 ## Docker
 
 Build:
