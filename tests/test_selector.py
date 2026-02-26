@@ -9,6 +9,7 @@ from miller.selector import (
     resolve_precursors,
     select_explicit,
     select_random,
+    select_random_percent,
     select_scan_ids,
 )
 
@@ -44,6 +45,14 @@ def test_random_zero_error() -> None:
 def test_random_returns_all_when_count_matches() -> None:
     scan_ids = ["scan=1", "scan=2"]
     assert select_random(scan_ids, 2, 42) == scan_ids
+
+
+def test_random_percent() -> None:
+    scan_ids = [f"scan={i}" for i in range(1, 11)]
+    result = select_random_percent(scan_ids, 10.0, 42)
+    assert len(result) == 1
+    result2 = select_random_percent(scan_ids, 100.0, 42)
+    assert len(result2) == 10
 
 
 def test_explicit_missing() -> None:
@@ -99,8 +108,10 @@ def test_select_scan_ids_random_with_and_without_precursors() -> None:
     selected_with = select_scan_ids(
         infos,
         scan_count=1,
+        scan_percent=None,
         requested_scan_ids=None,
         ms_levels={3},
+        excluded_scan_ids=None,
         include_precursors=True,
         seed=42,
     )
@@ -109,8 +120,10 @@ def test_select_scan_ids_random_with_and_without_precursors() -> None:
     selected_without = select_scan_ids(
         infos,
         scan_count=1,
+        scan_percent=None,
         requested_scan_ids=None,
         ms_levels={3},
+        excluded_scan_ids=None,
         include_precursors=False,
         seed=42,
     )
@@ -122,12 +135,74 @@ def test_select_scan_ids_explicit_mode() -> None:
     selected = select_scan_ids(
         infos,
         scan_count=None,
+        scan_percent=None,
         requested_scan_ids=["1002", "1001"],
         ms_levels=None,
+        excluded_scan_ids=None,
         include_precursors=True,
         seed=42,
     )
     assert selected == ["scan=1001", "scan=1002"]
+
+
+def test_select_scan_ids_percent_with_exclude() -> None:
+    infos = _infos()
+    selected = select_scan_ids(
+        infos,
+        scan_count=None,
+        scan_percent=50.0,
+        requested_scan_ids=None,
+        ms_levels=None,
+        excluded_scan_ids=["scan=1001", "scan=1002", "scan=1003"],
+        include_precursors=False,
+        seed=42,
+    )
+    assert all(scan_id not in {"scan=1001", "scan=1002", "scan=1003"} for scan_id in selected)
+
+
+def test_select_scan_ids_explicit_respects_exclude() -> None:
+    infos = _infos()
+    selected = select_scan_ids(
+        infos,
+        scan_count=None,
+        scan_percent=None,
+        requested_scan_ids=["scan=1001", "scan=1002"],
+        ms_levels=None,
+        excluded_scan_ids=["scan=1002"],
+        include_precursors=False,
+        seed=42,
+    )
+    assert selected == ["scan=1001"]
+
+
+def test_select_scan_ids_random_no_eligible_after_exclude() -> None:
+    infos = _infos()
+    with pytest.raises(ScanCountError, match="No eligible scans available"):
+        select_scan_ids(
+            infos,
+            scan_count=1,
+            scan_percent=None,
+            requested_scan_ids=None,
+            ms_levels=None,
+            excluded_scan_ids=[s.scan_id for s in infos],
+            include_precursors=False,
+            seed=42,
+        )
+
+
+def test_select_scan_ids_random_no_eligible_after_ms_and_exclude() -> None:
+    infos = _infos()
+    with pytest.raises(ScanCountError, match="--ms-level filtering and exclusions"):
+        select_scan_ids(
+            infos,
+            scan_count=1,
+            scan_percent=None,
+            requested_scan_ids=None,
+            ms_levels={3},
+            excluded_scan_ids=["scan=1006"],
+            include_precursors=False,
+            seed=42,
+        )
 
 
 def test_select_scan_ids_count_exceeds_messages() -> None:
@@ -136,8 +211,10 @@ def test_select_scan_ids_count_exceeds_messages() -> None:
         select_scan_ids(
             infos,
             scan_count=99,
+            scan_percent=None,
             requested_scan_ids=None,
             ms_levels=None,
+            excluded_scan_ids=None,
             include_precursors=True,
             seed=42,
         )
@@ -145,8 +222,10 @@ def test_select_scan_ids_count_exceeds_messages() -> None:
         select_scan_ids(
             infos,
             scan_count=99,
+            scan_percent=None,
             requested_scan_ids=None,
             ms_levels={2},
+            excluded_scan_ids=None,
             include_precursors=True,
             seed=42,
         )

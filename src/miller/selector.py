@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import random
 import sys
 from collections.abc import Iterable
@@ -35,6 +36,11 @@ def select_explicit(scan_ids: list[str], requested: list[str]) -> list[str]:
     if missing:
         raise MissingScanError(missing)
     return [scan_id for scan_id in scan_ids if scan_id in requested_set]
+
+
+def select_random_percent(scan_ids: list[str], percent: float, seed: int) -> list[str]:
+    count = math.ceil((percent / 100.0) * len(scan_ids))
+    return select_random(scan_ids, count, seed)
 
 
 def resolve_precursors(
@@ -83,16 +89,25 @@ def select_scan_ids(
     scan_infos: list[ScanInfo],
     *,
     scan_count: int | None,
+    scan_percent: float | None,
     requested_scan_ids: Iterable[str] | None,
     ms_levels: set[int] | None,
+    excluded_scan_ids: Iterable[str] | None,
     include_precursors: bool,
     seed: int,
 ) -> list[str]:
     source_order = [s.scan_id for s in scan_infos]
+    excluded_set = {normalize_scan_id(s) for s in excluded_scan_ids} if excluded_scan_ids else set()
     eligible_infos = scan_infos
     if ms_levels is not None:
         eligible_infos = filter_by_ms_level(scan_infos, ms_levels)
-    eligible_ids = [s.scan_id for s in eligible_infos]
+    eligible_ids = [s.scan_id for s in eligible_infos if s.scan_id not in excluded_set]
+    if (scan_count is not None or scan_percent is not None) and not eligible_ids:
+        if ms_levels is None:
+            raise ScanCountError("No eligible scans available after applying exclusions.")
+        raise ScanCountError(
+            "No eligible scans available after applying --ms-level filtering and exclusions."
+        )
 
     if scan_count is not None:
         if scan_count > len(eligible_ids):
@@ -104,12 +119,16 @@ def select_scan_ids(
                 f"Requested scan count {scan_count} exceeds available scans {len(eligible_ids)} after --ms-level filtering."
             )
         selected = select_random(eligible_ids, scan_count, seed)
+    elif scan_percent is not None:
+        selected = select_random_percent(eligible_ids, scan_percent, seed)
     else:
         assert requested_scan_ids is not None
         selected = select_explicit(source_order, list(requested_scan_ids))
+        selected = [scan_id for scan_id in selected if scan_id not in excluded_set]
 
     if not include_precursors:
-        return selected
+        return [scan_id for scan_id in selected if scan_id not in excluded_set]
 
     precursor_map = {s.scan_id: s.precursor_ref for s in scan_infos}
-    return resolve_precursors(selected, precursor_map, source_order)
+    resolved = resolve_precursors(selected, precursor_map, source_order)
+    return [scan_id for scan_id in resolved if scan_id not in excluded_set]

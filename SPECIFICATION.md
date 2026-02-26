@@ -30,9 +30,11 @@ Production mzML files are often hundreds of MB to multiple GB. Automated workflo
   - `output`: output mzML path.
 - Exactly one selection mode:
   - `--scan-count N`
-  - `--scan-list S1,S2,...`
+  - `--scan-percent P`
+  - `--scan-include-file PATH` (one scan ID per line, no header)
 - Optional:
-  - `--ms-level L1,L2,...` (valid only with `--scan-count`)
+  - `--scan-exclude-file PATH` (one scan ID per line, no header)
+  - `--ms-level L1,L2,...` (valid only with random mode: `--scan-count`/`--scan-percent`)
   - `--include-precursors / --no-include-precursors` (default enabled)
   - `--indexed / --no-index` (default follows source)
   - `--compression source|zlib|none` (default `source`)
@@ -42,13 +44,18 @@ Production mzML files are often hundreds of MB to multiple GB. Automated workflo
 
 - Random mode:
   - If `--ms-level` is set, filter eligible pool first.
+  - If `--scan-exclude-file` is set, remove excluded scans from eligible pool before selection.
   - Choose `N` uniformly at random from eligible scans.
+  - Or choose `P%` from eligible scans when `--scan-percent` is used.
   - Output order always follows source order.
-  - If `N` exceeds eligible count, fail with descriptive error.
+  - If requested random selection cannot be satisfied from eligible scans, fail with descriptive error.
 - Explicit mode:
-  - Accept bare numbers (`1001`) or prefixed IDs (`scan=1001`).
+  - Read included scan IDs from include file (`--scan-include-file`).
+  - Accept bare numbers (`1001`) or prefixed IDs (`scan=1001`) in file lines.
   - Fail with all missing IDs listed if any are absent.
   - Output order follows source order.
+  - If both include and exclude files are provided, both are honored.
+  - If any scan ID appears in both include and exclude files, fail with usage error.
 
 ### 2.3 Precursor Inclusion
 
@@ -95,7 +102,7 @@ When disabled:
 - `1`: invalid/unreadable input.
 - `2`: CLI usage errors (flag incompatibility, missing mode, etc.).
 - `3`: explicit scan IDs missing.
-- `4`: scan count exceeds eligible pool.
+- `4`: random selection exceeds or has no eligible pool after filtering/exclusion.
 - `5`: output not writable/write failure.
 
 All errors go to stderr. Successful execution is silent.

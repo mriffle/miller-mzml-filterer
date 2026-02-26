@@ -12,8 +12,10 @@ from .selector import select_scan_ids
 from .validation import (
     ensure_readable_input,
     ensure_writable_output,
+    parse_scan_file,
+    parse_scan_percent,
     parse_ms_levels,
-    parse_scan_list,
+    validate_include_exclude_disjoint,
     validate_selection_mode,
 )
 from .writer import write_subset
@@ -21,12 +23,29 @@ from .writer import write_subset
 
 @click.command(context_settings={"help_option_names": ["--help", "-h"]})
 @click.option("--scan-count", type=int, default=None, help="Number of random scans to select.")
-@click.option("--scan-list", type=str, default=None, help="Comma-separated scan IDs to select.")
+@click.option(
+    "--scan-percent",
+    type=float,
+    default=None,
+    help="Percent of eligible scans to select at random (0 < percent <= 100).",
+)
+@click.option(
+    "--scan-include-file",
+    type=click.Path(path_type=Path, dir_okay=False),
+    default=None,
+    help="File containing one scan identifier per line to include.",
+)
+@click.option(
+    "--scan-exclude-file",
+    type=click.Path(path_type=Path, dir_okay=False),
+    default=None,
+    help="File containing one scan identifier per line to exclude.",
+)
 @click.option(
     "--ms-level",
     type=str,
     default=None,
-    help='Comma-separated MS levels to include (e.g., "1" or "1,2"). Only valid with --scan-count.',
+    help='Comma-separated MS levels to include (e.g., "1" or "1,2"). Only valid with random selection.',
 )
 @click.option("--include-precursors/--no-include-precursors", default=True, show_default=True)
 @click.option("--indexed/--no-index", default=None, help="Force indexed or non-indexed output.")
@@ -41,7 +60,9 @@ from .writer import write_subset
 @click.argument("output_path", type=click.Path(path_type=Path, dir_okay=False))
 def main(
     scan_count: int | None,
-    scan_list: str | None,
+    scan_percent: float | None,
+    scan_include_file: Path | None,
+    scan_exclude_file: Path | None,
     ms_level: str | None,
     include_precursors: bool,
     indexed: bool | None,
@@ -52,11 +73,23 @@ def main(
 ) -> None:
     """Generate a subset mzML file for testing."""
     try:
-        validate_selection_mode(scan_count, scan_list, ms_level)
+        validate_selection_mode(scan_count, scan_percent, scan_include_file, ms_level)
         ensure_readable_input(input_path)
         ensure_writable_output(output_path)
 
-        requested_scan_ids = parse_scan_list(scan_list) if scan_list else None
+        scan_percent = parse_scan_percent(scan_percent)
+        requested_scan_ids = (
+            parse_scan_file(scan_include_file, "--scan-include-file")
+            if scan_include_file is not None
+            else None
+        )
+        excluded_scan_ids = (
+            parse_scan_file(scan_exclude_file, "--scan-exclude-file")
+            if scan_exclude_file is not None
+            else []
+        )
+        if requested_scan_ids is not None:
+            validate_include_exclude_disjoint(requested_scan_ids, excluded_scan_ids)
         ms_levels = parse_ms_levels(ms_level)
 
         source = MzMLSource(input_path)
@@ -65,8 +98,10 @@ def main(
         selected_ids = select_scan_ids(
             source.scan_infos,
             scan_count=scan_count,
+            scan_percent=scan_percent,
             requested_scan_ids=requested_scan_ids,
             ms_levels=ms_levels,
+            excluded_scan_ids=excluded_scan_ids,
             include_precursors=include_precursors,
             seed=seed,
         )

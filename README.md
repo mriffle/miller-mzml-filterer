@@ -12,7 +12,9 @@
 
 - Selects spectra by:
   - Random count: `--scan-count N`
-  - Explicit list: `--scan-list ...`
+  - Random percent: `--scan-percent PCT`
+  - Include file: `--scan-include-file path/to/include.txt`
+- Optional exclusion file: `--scan-exclude-file path/to/exclude.txt`
 - Optional MS-level pre-filtering for random mode: `--ms-level 1`, `--ms-level 2`, `--ms-level 1,2`.
 - Precursor inclusion (default on): if an MSn scan references a precursor via `spectrumRef`, the full precursor chain is included.
 - Preserves run-level sections and metadata, updates `spectrumList/@count`.
@@ -57,10 +59,31 @@ Create a subset from only MS2 scans (still includes precursor MS1 scans when ref
 miller --ms-level 2 --scan-count 10 data/input.mzML subsets/input.ms2_10_plus_precursors.mzML
 ```
 
-Create a subset with exact scan IDs (accepts both `1001` and `scan=1001` forms):
+Create a subset with exact scan IDs using an include file (`one scan ID per line`, no header):
 
 ```bash
-miller --scan-list 1001,1002,1050 data/input.mzML subsets/input.scans_1001_1002_1050.mzML
+cat > subsets/include_scans.txt <<'EOF'
+1001
+1002
+1050
+EOF
+miller --scan-include-file subsets/include_scans.txt data/input.mzML subsets/input.scans_1001_1002_1050.mzML
+```
+
+Create a random subset by percent:
+
+```bash
+miller --scan-percent 5 data/input.mzML subsets/input.subset_5pct.mzML
+```
+
+Exclude specific scans from random candidate pool (and final output):
+
+```bash
+cat > subsets/exclude_scans.txt <<'EOF'
+1001
+1002
+EOF
+miller --scan-count 50 --scan-exclude-file subsets/exclude_scans.txt data/input.mzML subsets/input.subset_50_excl.mzML
 ```
 
 Disable precursor inclusion (output contains exactly the selected scans):
@@ -93,10 +116,16 @@ Randomly select 50 scans:
 miller --scan-count 50 input.mzML output.mzML
 ```
 
-Select specific scans (accepts both `1001` and `scan=1001` forms):
+Select specific scans via include file:
 
 ```bash
-miller --scan-list 1001,1002,1050 input.mzML output.mzML
+miller --scan-include-file include_scans.txt input.mzML output.mzML
+```
+
+Randomly select by percent:
+
+```bash
+miller --scan-percent 10 input.mzML output.mzML
 ```
 
 Only draw from MS2 scans, but still include MS1 precursors if referenced:
@@ -130,16 +159,27 @@ Selection mode (exactly one required):
 - `--scan-count INTEGER`: randomly select N scans uniformly from the eligible pool.
   - Output order is the original file order, not the random draw order.
   - If N exceeds the eligible pool size, the program exits non-zero (see Exit Codes).
-- `--scan-list TEXT`: comma-separated scan IDs to include.
-  - Accepts `1001,1002` or `scan=1001,scan=1002`.
-  - Output order follows the source file order (not the CLI order).
+- `--scan-percent FLOAT`: randomly select a percentage of eligible scans.
+  - Must be `> 0` and `<= 100`.
+  - Selection count is computed from the eligible pool after any exclusions.
+- `--scan-include-file PATH`: file with one scan ID per line to include.
+  - Accepts either bare numbers (`1001`) or prefixed IDs (`scan=1001`).
+  - Output order follows source file order.
+  - Incompatible with `--scan-count` and `--scan-percent`.
+
+Exclusion file:
+
+- `--scan-exclude-file PATH`: file with one scan ID per line to exclude.
+  - Excluded scans are removed from random candidate pools and from final output.
+  - Can be combined with random selection or include-file selection.
+  - If the same scan appears in both include and exclude files, the program exits with usage error.
 
 MS-level filtering:
 
 - `--ms-level TEXT`: comma-separated MS levels (e.g. `1`, `2`, `1,2`).
-  - Valid only with `--scan-count`.
+  - Valid only with random selection (`--scan-count` or `--scan-percent`).
   - Applies only to the initial random selection pool. Precursor inclusion can add MS levels not listed here.
-  - Using `--ms-level` with `--scan-list` is a usage error.
+  - Using `--ms-level` with `--scan-include-file` is a usage error.
 
 Precursor inclusion:
 
@@ -165,7 +205,7 @@ Binary array compression:
 
 Reproducibility:
 
-- `--seed INTEGER` (default: `42`): random seed used only for `--scan-count`.
+- `--seed INTEGER` (default: `42`): random seed used for `--scan-count` and `--scan-percent`.
 
 Help:
 
@@ -176,7 +216,7 @@ Help:
 - `1`: invalid/unreadable input file.
 - `2`: CLI usage/argument error (bad flag combinations).
 - `3`: one or more explicit scans were not found.
-- `4`: requested `--scan-count` exceeds eligible scans (after any `--ms-level` filtering).
+- `4`: random selection request exceeds or has no eligible scans after filtering/exclusion.
 - `5`: output path/write error.
 
 ## Installation (Local Dev)

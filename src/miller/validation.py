@@ -3,17 +3,30 @@
 from __future__ import annotations
 
 from pathlib import Path
+import math
 
 from .errors import UsageError
 
 
-def validate_selection_mode(scan_count: int | None, scan_list: str | None, ms_level: str | None) -> None:
+def validate_selection_mode(
+    scan_count: int | None,
+    scan_percent: float | None,
+    scan_include_file: Path | None,
+    ms_level: str | None,
+) -> None:
     has_count = scan_count is not None
-    has_list = scan_list is not None and scan_list.strip() != ""
-    if has_count == has_list:
-        raise UsageError("Exactly one of --scan-count or --scan-list must be provided.")
-    if has_list and ms_level:
-        raise UsageError("--ms-level is only valid with --scan-count and cannot be used with --scan-list.")
+    has_percent = scan_percent is not None
+    has_include_file = scan_include_file is not None
+    selected_modes = sum([has_count, has_percent, has_include_file])
+    if selected_modes != 1:
+        raise UsageError(
+            "Exactly one of --scan-count, --scan-percent, or --scan-include-file must be provided."
+        )
+    if has_include_file and ms_level:
+        raise UsageError(
+            "--ms-level is only valid with random selection (--scan-count or --scan-percent) "
+            "and cannot be used with --scan-include-file."
+        )
 
 
 def ensure_readable_input(path: Path) -> None:
@@ -39,10 +52,15 @@ def ensure_writable_output(path: Path) -> None:
         raise PermissionError(f"Output path is not writable: {path}") from exc
 
 
-def parse_scan_list(scan_list: str) -> list[str]:
-    values = [v.strip() for v in scan_list.split(",") if v.strip()]
+def parse_scan_file(scan_file: Path, option_name: str) -> list[str]:
+    try:
+        text = scan_file.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise UsageError(f"{option_name} file is not readable: {scan_file}") from exc
+
+    values = [v.strip() for v in text.splitlines() if v.strip()]
     if not values:
-        raise UsageError("--scan-list must contain at least one scan identifier.")
+        raise UsageError(f"{option_name} must contain at least one scan identifier per line.")
     canonical = []
     seen: set[str] = set()
     for value in values:
@@ -77,3 +95,22 @@ def parse_ms_levels(ms_level: str | None) -> set[int] | None:
             raise UsageError("MS levels must be positive integers.")
         levels.add(level)
     return levels
+
+
+def parse_scan_percent(scan_percent: float | None) -> float | None:
+    if scan_percent is None:
+        return None
+    if not math.isfinite(scan_percent):
+        raise UsageError("--scan-percent must be a finite number between 0 and 100.")
+    if scan_percent <= 0 or scan_percent > 100:
+        raise UsageError("--scan-percent must be greater than 0 and at most 100.")
+    return scan_percent
+
+
+def validate_include_exclude_disjoint(included: list[str], excluded: list[str]) -> None:
+    overlap = sorted(set(included).intersection(excluded))
+    if overlap:
+        joined = ", ".join(overlap)
+        raise UsageError(
+            f"Include and exclude scan files overlap. Remove duplicates from one file: {joined}"
+        )
