@@ -11,6 +11,8 @@ from miller.reader import (
     _extract_ms_level_pyteomics,
     _extract_precursor_ref,
     _extract_precursor_ref_pyteomics,
+    _extract_retention_time,
+    _extract_retention_time_pyteomics,
     _local_name,
     MzMLSource,
 )
@@ -45,6 +47,31 @@ def test_pyteomics_extract_helpers() -> None:
     assert _extract_ms_level_pyteomics({"ms level": "bad"}) is None
     assert _extract_precursor_ref_pyteomics({"precursorList": {"precursor": [{"spectrumRef": "scan=1"}]}}) == "scan=1"
     assert _extract_precursor_ref_pyteomics({"precursorList": {"precursor": [{}]}}) is None
+    assert _extract_retention_time_pyteomics({"scanList": {"scan": [{"scan start time": 1.5}]}}) == 1.5
+
+
+def test_extract_retention_time_edge_cases() -> None:
+    spectrum = etree.Element(f"{{{MZ_NS}}}spectrum")
+    assert _extract_retention_time(spectrum) is None
+
+    scan_list = etree.SubElement(spectrum, f"{{{MZ_NS}}}scanList")
+    scan = etree.SubElement(scan_list, f"{{{MZ_NS}}}scan")
+    cv = etree.SubElement(scan, f"{{{MZ_NS}}}cvParam")
+    cv.set("accession", "MS:1000016")
+    cv.set("value", "not-a-number")
+    assert _extract_retention_time(spectrum) is None
+
+
+def test_extract_retention_time_normalizes_seconds() -> None:
+    spectrum = etree.Element(f"{{{MZ_NS}}}spectrum")
+    scan_list = etree.SubElement(spectrum, f"{{{MZ_NS}}}scanList")
+    scan = etree.SubElement(scan_list, f"{{{MZ_NS}}}scan")
+    cv = etree.SubElement(scan, f"{{{MZ_NS}}}cvParam")
+    cv.set("accession", "MS:1000016")
+    cv.set("value", "120")
+    cv.set("unitAccession", "UO:0000010")
+    cv.set("unitName", "second")
+    assert _extract_retention_time(spectrum) == 2.0
 
 
 def test_reader_invalid_root(tmp_path: Path) -> None:

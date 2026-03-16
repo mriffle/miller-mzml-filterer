@@ -21,6 +21,107 @@ def test_cli_scan_count(nonindexed_fixture: Path, tmp_path: Path) -> None:
     assert len(subset.scan_infos) >= 2
 
 
+def test_cli_rt_only_mode(nonindexed_fixture: Path, tmp_path: Path) -> None:
+    out = tmp_path / "out.mzML"
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        ["--rt-range-start", "3", "--rt-range-end", "5", "--no-include-precursors", str(nonindexed_fixture), str(out)],
+    )
+    assert result.exit_code == 0, result.output
+    subset = MzMLSource(out)
+    assert [s.scan_id for s in subset.scan_infos] == ["scan=1003", "scan=1004", "scan=1005"]
+
+
+def test_cli_rt_filter_with_precursor_outside_range(nonindexed_fixture: Path, tmp_path: Path) -> None:
+    include_file = tmp_path / "include.txt"
+    _write_scan_file(include_file, ["1002"])
+    out = tmp_path / "out.mzML"
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "--scan-include-file",
+            str(include_file),
+            "--rt-range-start",
+            "2",
+            "--rt-range-end",
+            "2",
+            str(nonindexed_fixture),
+            str(out),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    subset = MzMLSource(out)
+    assert [s.scan_id for s in subset.scan_infos] == ["scan=1001", "scan=1002"]
+
+
+def test_cli_rt_window_only_mode(nonindexed_fixture: Path, tmp_path: Path) -> None:
+    out = tmp_path / "out.mzML"
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "--rt-window-percent",
+            "25",
+            "--seed",
+            "42",
+            "--no-include-precursors",
+            str(nonindexed_fixture),
+            str(out),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    subset = MzMLSource(out)
+    assert [s.scan_id for s in subset.scan_infos] == [
+        "scan=1011",
+        "scan=1012",
+        "scan=1013",
+        "scan=1014",
+    ]
+
+
+def test_cli_rt_window_then_scan_count(nonindexed_fixture: Path, tmp_path: Path) -> None:
+    out = tmp_path / "out.mzML"
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "--rt-window-percent",
+            "25",
+            "--scan-count",
+            "2",
+            "--seed",
+            "42",
+            "--no-include-precursors",
+            str(nonindexed_fixture),
+            str(out),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    subset = MzMLSource(out)
+    assert [s.scan_id for s in subset.scan_infos] == ["scan=1011", "scan=1014"]
+
+
+def test_cli_rt_filter_empty_selection_errors(nonindexed_fixture: Path, tmp_path: Path) -> None:
+    out = tmp_path / "out.mzML"
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "--rt-range-start",
+            "100",
+            "--rt-range-end",
+            "200",
+            "--no-include-precursors",
+            str(nonindexed_fixture),
+            str(out),
+        ],
+    )
+    assert result.exit_code == 4
+    assert "No scans selected" in result.output
+
+
 def test_cli_scan_include_file(nonindexed_fixture: Path, tmp_path: Path) -> None:
     include_file = tmp_path / "include.txt"
     _write_scan_file(include_file, ["1001", "1006"])
@@ -151,6 +252,38 @@ def test_cli_ms_level_with_exclude_only_error(nonindexed_fixture: Path, tmp_path
             str(exclude_file),
             "--ms-level",
             "2",
+            str(nonindexed_fixture),
+            str(out),
+        ],
+    )
+    assert result.exit_code == 2
+
+
+def test_cli_invalid_rt_range(nonindexed_fixture: Path, tmp_path: Path) -> None:
+    out = tmp_path / "out.mzML"
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "--rt-range-start",
+            "8",
+            "--rt-range-end",
+            "2",
+            str(nonindexed_fixture),
+            str(out),
+        ],
+    )
+    assert result.exit_code == 2
+
+
+def test_cli_invalid_rt_window_percent(nonindexed_fixture: Path, tmp_path: Path) -> None:
+    out = tmp_path / "out.mzML"
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "--rt-window-percent",
+            "0",
             str(nonindexed_fixture),
             str(out),
         ],

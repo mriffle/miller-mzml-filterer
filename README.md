@@ -14,6 +14,8 @@
   - Random count: `--scan-count N`
   - Random percent: `--scan-percent PCT`
   - Include file: `--scan-include-file path/to/include.txt`
+- Optional retention-time filtering: `--rt-range-start MIN_RT`, `--rt-range-end MAX_RT`
+- Optional random retention-time window: `--rt-window-percent PCT`
 - Optional exclusion file: `--scan-exclude-file path/to/exclude.txt`
 - Optional MS-level pre-filtering for random mode: `--ms-level 1`, `--ms-level 2`, `--ms-level 1,2`.
 - Precursor inclusion (default on): if an MSn scan references a precursor via `spectrumRef`, the full precursor chain is included.
@@ -74,6 +76,24 @@ Create a random subset by percent:
 
 ```bash
 miller --scan-percent 5 data/input.mzML subsets/input.subset_5pct.mzML
+```
+
+Create a subset from a chromatographic time window:
+
+```bash
+miller --rt-range-start 35.2 --rt-range-end 35.8 data/input.mzML subsets/input.rt_35p2_35p8.mzML
+```
+
+Use a retention-time filter before random selection:
+
+```bash
+miller --rt-range-start 35.2 --rt-range-end 35.8 --scan-count 50 data/input.mzML subsets/input.rt_window_random_50.mzML
+```
+
+Keep a random contiguous 10% retention-time window, then select 25 scans from within it:
+
+```bash
+miller --rt-window-percent 10 --scan-count 25 data/input.mzML subsets/input.rt_segment_10pct_count25.mzML
 ```
 
 Exclude specific scans from random candidate pool (and final output):
@@ -174,8 +194,21 @@ Selection mode:
   - Incompatible with `--scan-count` and `--scan-percent`.
 - `--scan-exclude-file PATH` can also be used alone (no include/count/percent), which means:
   - Start from all scans in input.
+  - Apply any retention-time bounds.
   - Exclude listed scans.
   - Then apply precursor inclusion behavior and final exclusion.
+- `--rt-range-start FLOAT` and `--rt-range-end FLOAT`:
+  - Optional inclusive retention-time bounds applied before selection.
+  - If only one bound is provided, the other side is left open.
+  - Can be combined with random selection, include-file selection, or used by themselves to keep all scans within a time window.
+  - Scans with missing retention time are treated as ineligible when any RT filter is present.
+  - Precursor inclusion can still add scans outside the requested RT window.
+- `--rt-window-percent FLOAT`:
+  - Chooses a random contiguous retention-time window whose width is the given percentage of the eligible RT span.
+  - Applied after fixed RT bounds and before non-RT filters or primary selection.
+  - Can be combined with random selection, include-file selection, or used by itself.
+  - The percentage refers to retention-time span, not percentage of scans.
+  - Precursor inclusion can still add scans outside the chosen RT window.
 
 Exclusion file:
 
@@ -217,6 +250,7 @@ Binary array compression:
 Reproducibility:
 
 - `--seed INTEGER` (default: `42`): random seed used for `--scan-count` and `--scan-percent`.
+  - Also used for `--rt-window-percent`.
 
 Help:
 
@@ -228,6 +262,7 @@ Help:
 - `2`: CLI usage/argument error (bad flag combinations).
 - `3`: one or more explicit scans were not found.
 - `4`: random selection request exceeds or has no eligible scans after filtering/exclusion.
+  - Also used when any other filter/selection combination leaves zero scans selected.
 - `5`: output path/write error.
 
 ## Installation (Local Dev)

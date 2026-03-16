@@ -33,6 +33,9 @@ Production mzML files are often hundreds of MB to multiple GB. Automated workflo
   - `--scan-percent P`
   - `--scan-include-file PATH` (one scan ID per line, no header)
 - Optional:
+  - `--rt-range-start START`
+  - `--rt-range-end END`
+  - `--rt-window-percent P`
   - `--scan-exclude-file PATH` (one scan ID per line, no header)
   - `--ms-level L1,L2,...` (valid only with random mode: `--scan-count`/`--scan-percent`)
   - `--include-precursors / --no-include-precursors` (default enabled)
@@ -42,9 +45,17 @@ Production mzML files are often hundreds of MB to multiple GB. Automated workflo
 
 ### 2.2 Selection Rules
 
+- Retention-time filtering:
+  - `--rt-range-start` and `--rt-range-end` define optional inclusive bounds on the eligible scan pool.
+  - `--rt-window-percent` defines a seeded random contiguous window whose width is `P%` of the eligible retention-time span.
+  - If only one bound is provided, the other side is left open.
+  - Fixed RT bounds are applied first, then the RT window filter is applied inside the bounded RT space.
+  - Retention time matching is evaluated before non-RT filtering and before random, explicit, or exclude-only selection.
+  - Scans with missing or invalid retention time are ineligible when any RT filter is supplied.
 - Random mode:
-  - If `--ms-level` is set, filter eligible pool first.
-  - If `--scan-exclude-file` is set, remove excluded scans from eligible pool before selection.
+  - If RT filters are set, apply them first to define the candidate pool.
+  - If `--ms-level` is set, filter that candidate pool next.
+  - If `--scan-exclude-file` is set, remove excluded scans from the candidate pool before selection.
   - Choose `N` uniformly at random from eligible scans.
   - Or choose `P%` from eligible scans when `--scan-percent` is used.
   - Output order always follows source order.
@@ -53,12 +64,23 @@ Production mzML files are often hundreds of MB to multiple GB. Automated workflo
   - Read included scan IDs from include file (`--scan-include-file`).
   - Accept bare numbers (`1001`) or prefixed IDs (`scan=1001`) in file lines.
   - Fail with all missing IDs listed if any are absent.
+  - Then intersect requested scans with the eligible pool after retention-time filtering and exclusions.
   - Output order follows source order.
   - If both include and exclude files are provided, both are honored.
   - If any scan ID appears in both include and exclude files, fail with usage error.
 - Exclude-only mode:
-  - If none of `--scan-count`, `--scan-percent`, `--scan-include-file` are supplied, but `--scan-exclude-file` is supplied, start from all scans and remove exclusions.
+  - If none of `--scan-count`, `--scan-percent`, or `--scan-include-file` are supplied, start from all scans, then apply retention-time filtering and remove exclusions.
   - This mode cannot be combined with `--ms-level`.
+- If the applied filters/selectors produce zero scans, fail with a descriptive error.
+
+Filter order:
+
+1. Apply fixed RT bounds (`--rt-range-start` / `--rt-range-end`).
+2. Apply random RT window filtering (`--rt-window-percent`) within the bounded RT space.
+3. Apply non-RT eligibility filters (`--ms-level`, then exclusions).
+4. Apply the primary selector (`--scan-count`, `--scan-percent`, `--scan-include-file`, or all remaining scans).
+5. Expand precursor chains if enabled.
+6. Re-apply exclusions to final output.
 
 ### 2.3 Precursor Inclusion
 
@@ -69,6 +91,7 @@ When enabled:
 3. Walk recursively (MS3 -> MS2 -> MS1 chains).
 4. Deduplicate while preserving source order.
 5. Warn (stderr) and continue for broken references.
+6. Precursor expansion is not constrained by the retention-time filter and may add scans outside the requested RT bounds.
 
 When disabled:
 
@@ -106,6 +129,7 @@ When disabled:
 - `2`: CLI usage errors (flag incompatibility, missing mode, etc.).
 - `3`: explicit scan IDs missing.
 - `4`: random selection exceeds or has no eligible pool after filtering/exclusion.
+  This also covers any other selection/filter combination that results in zero selected scans.
 - `5`: output not writable/write failure.
 
 All errors go to stderr. Successful execution is silent.

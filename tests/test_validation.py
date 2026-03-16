@@ -10,37 +10,42 @@ from miller.validation import (
     ensure_writable_output,
     normalize_scan_id,
     parse_ms_levels,
+    parse_rt_bound,
+    parse_rt_window_percent,
     parse_scan_file,
     parse_scan_percent,
     validate_include_exclude_disjoint,
+    validate_rt_range,
     validate_selection_mode,
 )
 
 
 def test_validate_selection_mode_requires_exactly_one() -> None:
     with pytest.raises(UsageError):
-        validate_selection_mode(None, None, None, None, None)
+        validate_selection_mode(None, None, None, None, None, None, None, None)
     with pytest.raises(UsageError):
-        validate_selection_mode(1, 10.0, None, None, None)
+        validate_selection_mode(1, 10.0, None, None, None, None, None, None)
     with pytest.raises(UsageError):
-        validate_selection_mode(1, None, Path("x.txt"), None, None)
+        validate_selection_mode(1, None, Path("x.txt"), None, None, None, None, None)
 
 
 def test_validate_selection_mode_rejects_ms_level_with_include_file() -> None:
     with pytest.raises(UsageError):
-        validate_selection_mode(None, None, Path("in.txt"), None, "2")
+        validate_selection_mode(None, None, Path("in.txt"), None, None, None, None, "2")
 
 
 def test_validate_selection_mode_accepts_valid_modes() -> None:
-    validate_selection_mode(1, None, None, None, None)
-    validate_selection_mode(None, 25.0, None, None, "2")
-    validate_selection_mode(None, None, Path("in.txt"), None, None)
-    validate_selection_mode(None, None, None, Path("exclude.txt"), None)
+    validate_selection_mode(1, None, None, None, None, None, None, None)
+    validate_selection_mode(None, 25.0, None, None, None, None, None, "2")
+    validate_selection_mode(None, None, Path("in.txt"), None, None, None, None, None)
+    validate_selection_mode(None, None, None, Path("exclude.txt"), None, None, None, None)
+    validate_selection_mode(None, None, None, None, 5.0, None, None, None)
+    validate_selection_mode(None, None, None, None, None, 25.0, None, None)
 
 
 def test_validate_selection_mode_rejects_ms_level_with_exclude_only() -> None:
     with pytest.raises(UsageError):
-        validate_selection_mode(None, None, None, Path("exclude.txt"), "2")
+        validate_selection_mode(None, None, None, Path("exclude.txt"), None, None, None, "2")
 
 
 def test_ensure_writable_output_parent_missing(tmp_path: Path) -> None:
@@ -133,3 +138,16 @@ def test_parse_scan_percent() -> None:
         parse_scan_percent(100.1)
     with pytest.raises(UsageError):
         parse_scan_percent(float("inf"))
+
+
+def test_parse_rt_bound_and_range() -> None:
+    assert parse_rt_bound(None, "--rt-range-start") is None
+    assert parse_rt_bound(10.0, "--rt-range-start") == 10.0
+    with pytest.raises(UsageError):
+        parse_rt_bound(float("nan"), "--rt-range-start")
+    validate_rt_range(1.0, 2.0)
+    with pytest.raises(UsageError):
+        validate_rt_range(3.0, 2.0)
+    assert parse_rt_window_percent(25.0) == 25.0
+    with pytest.raises(UsageError):
+        parse_rt_window_percent(0.0)

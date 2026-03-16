@@ -25,6 +25,7 @@ def test_reads_nonindexed(nonindexed_fixture) -> None:
     assert source.is_indexed is False
     assert source.scan_infos[1].ms_level == 2
     assert source.scan_infos[1].precursor_ref == "scan=1001"
+    assert source.scan_infos[1].retention_time == 2.0
     assert source.scan_infos[2].precursor_ref is None
 
 

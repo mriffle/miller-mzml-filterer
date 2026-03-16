@@ -13,28 +13,34 @@ def validate_selection_mode(
     scan_percent: float | None,
     scan_include_file: Path | None,
     scan_exclude_file: Path | None,
+    rt_range_start: float | None,
+    rt_range_end: float | None,
+    rt_window_percent: float | None,
     ms_level: str | None,
 ) -> None:
     has_count = scan_count is not None
     has_percent = scan_percent is not None
     has_include_file = scan_include_file is not None
     has_exclude_file = scan_exclude_file is not None
+    has_rt_filter = (
+        rt_range_start is not None or rt_range_end is not None or rt_window_percent is not None
+    )
     selected_modes = sum([has_count, has_percent, has_include_file])
     if selected_modes > 1:
         raise UsageError(
             "Exactly one of --scan-count, --scan-percent, or --scan-include-file must be provided."
         )
-    if selected_modes == 0 and not has_exclude_file:
+    if selected_modes == 0 and not has_exclude_file and not has_rt_filter:
         raise UsageError(
             "Provide one of --scan-count, --scan-percent, --scan-include-file, "
-            "or use --scan-exclude-file alone."
+            "--rt-range-start/--rt-range-end, --rt-window-percent, or use --scan-exclude-file alone."
         )
     if has_include_file and ms_level:
         raise UsageError(
             "--ms-level is only valid with random selection (--scan-count or --scan-percent) "
             "and cannot be used with --scan-include-file."
         )
-    if selected_modes == 0 and has_exclude_file and ms_level:
+    if ms_level and not (has_count or has_percent):
         raise UsageError(
             "--ms-level is only valid with random selection (--scan-count or --scan-percent)."
         )
@@ -108,14 +114,35 @@ def parse_ms_levels(ms_level: str | None) -> set[int] | None:
     return levels
 
 
-def parse_scan_percent(scan_percent: float | None) -> float | None:
-    if scan_percent is None:
+def parse_rt_window_percent(rt_window_percent: float | None) -> float | None:
+    return parse_percent(rt_window_percent, "--rt-window-percent")
+
+
+def parse_percent(value: float | None, option_name: str) -> float | None:
+    if value is None:
         return None
-    if not math.isfinite(scan_percent):
-        raise UsageError("--scan-percent must be a finite number between 0 and 100.")
-    if scan_percent <= 0 or scan_percent > 100:
-        raise UsageError("--scan-percent must be greater than 0 and at most 100.")
-    return scan_percent
+    if not math.isfinite(value):
+        raise UsageError(f"{option_name} must be a finite number between 0 and 100.")
+    if value <= 0 or value > 100:
+        raise UsageError(f"{option_name} must be greater than 0 and at most 100.")
+    return value
+
+
+def parse_scan_percent(scan_percent: float | None) -> float | None:
+    return parse_percent(scan_percent, "--scan-percent")
+
+
+def parse_rt_bound(value: float | None, option_name: str) -> float | None:
+    if value is None:
+        return None
+    if not math.isfinite(value):
+        raise UsageError(f"{option_name} must be a finite number.")
+    return value
+
+
+def validate_rt_range(start: float | None, end: float | None) -> None:
+    if start is not None and end is not None and start > end:
+        raise UsageError("--rt-range-start must be less than or equal to --rt-range-end.")
 
 
 def validate_include_exclude_disjoint(included: list[str], excluded: list[str]) -> None:

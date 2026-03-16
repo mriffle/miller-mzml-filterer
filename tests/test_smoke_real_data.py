@@ -25,6 +25,7 @@ class SourceStats:
     ordered_scan_ids: list[str]
     ms_level_by_id: dict[str, int | None]
     precursor_by_id: dict[str, str | None]
+    retention_time_by_id: dict[str, float | None]
     ms1_ids: list[str]
     ms2_ids: list[str]
     ms2_with_parent_ids: list[str]
@@ -43,6 +44,7 @@ def smoke_stats(smoke_input_path: Path) -> SourceStats:
     ordered_scan_ids = [scan.scan_id for scan in source.scan_infos]
     ms_level_by_id = {scan.scan_id: scan.ms_level for scan in source.scan_infos}
     precursor_by_id = {scan.scan_id: scan.precursor_ref for scan in source.scan_infos}
+    retention_time_by_id = {scan.scan_id: scan.retention_time for scan in source.scan_infos}
 
     ms1_ids = [scan.scan_id for scan in source.scan_infos if scan.ms_level == 1]
     ms2_ids = [scan.scan_id for scan in source.scan_infos if scan.ms_level == 2]
@@ -66,6 +68,7 @@ def smoke_stats(smoke_input_path: Path) -> SourceStats:
         ordered_scan_ids=ordered_scan_ids,
         ms_level_by_id=ms_level_by_id,
         precursor_by_id=precursor_by_id,
+        retention_time_by_id=retention_time_by_id,
         ms1_ids=ms1_ids,
         ms2_ids=ms2_ids,
         ms2_with_parent_ids=ms2_with_parent_ids,
@@ -118,6 +121,9 @@ def _expected_ids(
     scan_percent: float | None = None,
     include_ids: list[str] | None = None,
     exclude_ids: list[str] | None = None,
+    rt_range_start: float | None = None,
+    rt_range_end: float | None = None,
+    rt_window_percent: float | None = None,
     ms_levels: set[int] | None = None,
     include_precursors: bool = True,
     seed: int = 42,
@@ -125,9 +131,16 @@ def _expected_ids(
     excluded_set = set(exclude_ids or [])
 
     def _eligible_ids() -> list[str]:
+        rt_filtered = _apply_rt_filters(
+            stats,
+            rt_range_start=rt_range_start,
+            rt_range_end=rt_range_end,
+            rt_window_percent=rt_window_percent,
+            seed=seed,
+        )
         return [
             scan_id
-            for scan_id in stats.ordered_scan_ids
+            for scan_id in rt_filtered
             if (ms_levels is None or stats.ms_level_by_id[scan_id] in ms_levels)
             and scan_id not in excluded_set
         ]
@@ -143,16 +156,80 @@ def _expected_ids(
         selected = [scan_id for scan_id in stats.ordered_scan_ids if scan_id in picked]
     else:
         if include_ids is None:
-            selected = [scan_id for scan_id in stats.ordered_scan_ids if scan_id not in excluded_set]
+            eligible = _eligible_ids()
+            selected = [scan_id for scan_id in stats.ordered_scan_ids if scan_id in set(eligible)]
         else:
+            eligible_set = set(_eligible_ids())
             include_set = set(include_ids)
-            selected = [scan_id for scan_id in stats.ordered_scan_ids if scan_id in include_set]
-            selected = [scan_id for scan_id in selected if scan_id not in excluded_set]
+            selected = [
+                scan_id
+                for scan_id in stats.ordered_scan_ids
+                if scan_id in include_set and scan_id in eligible_set
+            ]
 
     if include_precursors:
         selected = _resolve_precursors_locally(selected, stats.precursor_by_id, stats.ordered_scan_ids)
 
     return [scan_id for scan_id in selected if scan_id not in excluded_set]
+
+
+def _retention_time_matches(
+    value: float | None,
+    *,
+    start: float | None,
+    end: float | None,
+) -> bool:
+    if start is None and end is None:
+        return True
+    if value is None:
+        return False
+    if start is not None and value < start:
+        return False
+    if end is not None and value > end:
+        return False
+    return True
+
+
+def _apply_rt_filters(
+    stats: SourceStats,
+    *,
+    rt_range_start: float | None,
+    rt_range_end: float | None,
+    rt_window_percent: float | None,
+    seed: int,
+) -> list[str]:
+    fixed = [
+        scan_id
+        for scan_id in stats.ordered_scan_ids
+        if _retention_time_matches(
+            stats.retention_time_by_id[scan_id],
+            start=rt_range_start,
+            end=rt_range_end,
+        )
+    ]
+    if rt_window_percent is None:
+        return fixed
+    values = [stats.retention_time_by_id[scan_id] for scan_id in fixed]
+    retention_times = [value for value in values if value is not None]
+    if not retention_times:
+        return []
+    min_rt = min(retention_times)
+    max_rt = max(retention_times)
+    span = max_rt - min_rt
+    if span <= 0 or rt_window_percent == 100:
+        return fixed
+    width = (rt_window_percent / 100.0) * span
+    latest_start = max_rt - width
+    if latest_start <= min_rt:
+        start = min_rt
+    else:
+        start = random.Random(seed).uniform(min_rt, latest_start)
+    end = start + width
+    return [
+        scan_id
+        for scan_id in fixed
+        if (rt := stats.retention_time_by_id[scan_id]) is not None and start <= rt <= end
+    ]
 
 
 def _write_scan_file(path: Path, scan_ids: list[str]) -> Path:
@@ -330,6 +407,30 @@ def _assert_ms1_precursors_match_output_ms2(
             lambda stats: stats.is_indexed,
             "none",
         ),
+        (
+            "rt_only_no_precursors",
+            lambda stats, tmp: ["--rt-range-start", "35.21", "--rt-range-end", "35.22", "--no-include-precursors"],
+            lambda stats, tmp: _expected_ids(
+                stats,
+                rt_range_start=35.21,
+                rt_range_end=35.22,
+                include_precursors=False,
+            ),
+            lambda stats: stats.is_indexed,
+            "source",
+        ),
+        (
+            "rt_window_only_no_precursors",
+            lambda stats, tmp: ["--rt-window-percent", "25", "--seed", "42", "--no-include-precursors"],
+            lambda stats, tmp: _expected_ids(
+                stats,
+                rt_window_percent=25.0,
+                seed=42,
+                include_precursors=False,
+            ),
+            lambda stats: stats.is_indexed,
+            "source",
+        ),
     ],
 )
 def test_smoke_miller_option_matrix(
@@ -441,6 +542,42 @@ def test_smoke_percent_ms2_no_precursors_counts(smoke_stats: SourceStats, tmp_pa
     assert counts.get(2, 0) == 5
     assert counts.get(1, 0) == 0
     assert len(output_source.scan_infos) == 5
+
+
+def test_smoke_rt_filtered_include_file_with_precursors(
+    smoke_stats: SourceStats,
+    tmp_path: Path,
+) -> None:
+    output_path = tmp_path / "rt_filtered_include_with_precursors.mzML"
+    runner = CliRunner()
+    include_ids = smoke_stats.ms2_with_parent_ids[:1]
+    target_id = include_ids[0]
+    target_rt = smoke_stats.retention_time_by_id[target_id]
+    assert target_rt is not None
+
+    result = runner.invoke(
+        main,
+        [
+            "--scan-include-file",
+            str(_write_scan_file(tmp_path / "include.txt", include_ids)),
+            "--rt-range-start",
+            str(target_rt),
+            "--rt-range-end",
+            str(target_rt),
+            str(smoke_stats.input_path),
+            str(output_path),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    output_source = MzMLSource(output_path)
+    expected_ids = _expected_ids(
+        smoke_stats,
+        include_ids=include_ids,
+        rt_range_start=target_rt,
+        rt_range_end=target_rt,
+        include_precursors=True,
+    )
+    assert [scan.scan_id for scan in output_source.scan_infos] == expected_ids
 
 
 def test_smoke_percent_ms1_only_counts(smoke_stats: SourceStats, tmp_path: Path) -> None:

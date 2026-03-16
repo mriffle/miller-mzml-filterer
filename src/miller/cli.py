@@ -12,10 +12,13 @@ from .selector import select_scan_ids
 from .validation import (
     ensure_readable_input,
     ensure_writable_output,
+    parse_rt_bound,
+    parse_rt_window_percent,
     parse_scan_file,
     parse_scan_percent,
     parse_ms_levels,
     validate_include_exclude_disjoint,
+    validate_rt_range,
     validate_selection_mode,
 )
 from .writer import write_subset
@@ -41,6 +44,14 @@ from .writer import write_subset
     default=None,
     help="File containing one scan identifier per line to exclude.",
 )
+@click.option("--rt-range-start", type=float, default=None, help="Minimum retention time to include.")
+@click.option("--rt-range-end", type=float, default=None, help="Maximum retention time to include.")
+@click.option(
+    "--rt-window-percent",
+    type=float,
+    default=None,
+    help="Percent of the eligible retention-time span to keep in a random contiguous window.",
+)
 @click.option(
     "--ms-level",
     type=str,
@@ -63,6 +74,9 @@ def main(
     scan_percent: float | None,
     scan_include_file: Path | None,
     scan_exclude_file: Path | None,
+    rt_range_start: float | None,
+    rt_range_end: float | None,
+    rt_window_percent: float | None,
     ms_level: str | None,
     include_precursors: bool,
     indexed: bool | None,
@@ -73,11 +87,24 @@ def main(
 ) -> None:
     """Generate a subset mzML file for testing."""
     try:
-        validate_selection_mode(scan_count, scan_percent, scan_include_file, scan_exclude_file, ms_level)
+        validate_selection_mode(
+            scan_count,
+            scan_percent,
+            scan_include_file,
+            scan_exclude_file,
+            rt_range_start,
+            rt_range_end,
+            rt_window_percent,
+            ms_level,
+        )
         ensure_readable_input(input_path)
         ensure_writable_output(output_path)
 
         scan_percent = parse_scan_percent(scan_percent)
+        rt_range_start = parse_rt_bound(rt_range_start, "--rt-range-start")
+        rt_range_end = parse_rt_bound(rt_range_end, "--rt-range-end")
+        rt_window_percent = parse_rt_window_percent(rt_window_percent)
+        validate_rt_range(rt_range_start, rt_range_end)
         requested_scan_ids = (
             parse_scan_file(scan_include_file, "--scan-include-file")
             if scan_include_file is not None
@@ -100,6 +127,9 @@ def main(
             scan_count=scan_count,
             scan_percent=scan_percent,
             requested_scan_ids=requested_scan_ids,
+            rt_range_start=rt_range_start,
+            rt_range_end=rt_range_end,
+            rt_window_percent=rt_window_percent,
             ms_levels=ms_levels,
             excluded_scan_ids=excluded_scan_ids,
             include_precursors=include_precursors,

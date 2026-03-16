@@ -10,6 +10,7 @@ from numpy.typing import NDArray
 from lxml import etree
 
 from .codec import NS, decode_binary_data_array, encode_binary_data_array, is_zlib_array
+from .reader import _extract_retention_time
 
 CV_TIC = "MS:1000235"
 CV_BPC = "MS:1000628"
@@ -88,19 +89,8 @@ def _chrom_compression(requested: str, source_bda: etree._Element) -> str:
 
 
 def _retention_time(spectrum: etree._Element) -> float:
-    scan = spectrum.find("mz:scanList/mz:scan", NS)
-    if scan is None:
-        return 0.0
-    for cv in scan.findall("mz:cvParam", NS):
-        if cv.get("accession") == "MS:1000016":
-            value = cv.get("value")
-            if value is None:
-                return 0.0
-            try:
-                return float(value)
-            except ValueError:
-                return 0.0
-    return 0.0
+    value = _extract_retention_time(spectrum)
+    return 0.0 if value is None else value
 
 
 def _spectrum_intensity_array(spectrum: etree._Element) -> NDArray[Any]:

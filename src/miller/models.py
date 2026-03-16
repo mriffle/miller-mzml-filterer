@@ -9,3 +9,4 @@ class ScanInfo:
     index: int
     ms_level: int | None
     precursor_ref: str | None
+    retention_time: float | None

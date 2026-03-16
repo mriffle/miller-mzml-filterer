@@ -49,9 +49,9 @@ class MzMLSource:
             raise InputFileError("mzML file is missing <spectrumList>")
         self.spectrum_list = spectrum_list
         self.spectra = list(self.spectrum_list.findall("mz:spectrum", NS))
+        self.spectrum_by_id = {spec.get("id"): spec for spec in self.spectra if spec.get("id")}
         self.scan_infos = self._extract_scan_infos_with_pyteomics()
         self.scan_index = {info.scan_id: idx for idx, info in enumerate(self.scan_infos)}
-        self.spectrum_by_id = {spec.get("id"): spec for spec in self.spectra if spec.get("id")}
 
     def _extract_scan_infos_with_pyteomics(self) -> list[ScanInfo]:
         infos: list[ScanInfo] = []
@@ -64,12 +64,19 @@ class MzMLSource:
                         continue
                     ms_level = _extract_ms_level_pyteomics(spectrum)
                     precursor_ref = _extract_precursor_ref_pyteomics(spectrum)
+                    spectrum_el = self.spectrum_by_id.get(scan_id_obj)
+                    retention_time = (
+                        _extract_retention_time(spectrum_el)
+                        if spectrum_el is not None
+                        else _extract_retention_time_pyteomics(spectrum)
+                    )
                     infos.append(
                         ScanInfo(
                             scan_id=scan_id_obj,
                             index=idx,
                             ms_level=ms_level,
                             precursor_ref=precursor_ref,
+                            retention_time=retention_time,
                         )
                     )
         except Exception:  # noqa: BLE001
@@ -90,6 +97,7 @@ class MzMLSource:
                     index=idx,
                     ms_level=ms_level,
                     precursor_ref=precursor_ref,
+                    retention_time=_extract_retention_time(spectrum),
                 )
             )
         return infos
@@ -122,6 +130,27 @@ def _extract_precursor_ref(spectrum: etree._Element) -> str | None:
     return ref if ref else None
 
 
+def _extract_retention_time(spectrum: etree._Element) -> float | None:
+    scan = spectrum.find("mz:scanList/mz:scan", NS)
+    if scan is None:
+        return None
+    for cv in scan.findall("mz:cvParam", NS):
+        if cv.get("accession") == "MS:1000016":
+            value = cv.get("value")
+            if value is None:
+                return None
+            try:
+                rt = float(value)
+            except ValueError:
+                return None
+            return _normalize_retention_time(
+                rt,
+                unit_accession=cv.get("unitAccession"),
+                unit_name=cv.get("unitName"),
+            )
+    return None
+
+
 def _extract_ms_level_pyteomics(spectrum: dict[str, object]) -> int | None:
     value = spectrum.get("ms level")
     if value is None:
@@ -150,3 +179,36 @@ def _extract_precursor_ref_pyteomics(spectrum: dict[str, object]) -> str | None:
         return None
     ref = first.get("spectrumRef")
     return ref if isinstance(ref, str) and ref else None
+
+
+def _extract_retention_time_pyteomics(spectrum: dict[str, object]) -> float | None:
+    scan_list = spectrum.get("scanList")
+    if not isinstance(scan_list, dict):
+        return None
+    scans = scan_list.get("scan")
+    if not isinstance(scans, list) or not scans:
+        return None
+    first = scans[0]
+    if not isinstance(first, dict):
+        return None
+    value = first.get("scan start time")
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _normalize_retention_time(
+    value: float,
+    *,
+    unit_accession: str | None,
+    unit_name: str | None,
+) -> float:
+    normalized_unit = unit_name.lower() if unit_name is not None else None
+    if unit_accession == "UO:0000010" or normalized_unit in {"second", "seconds"}:
+        return value / 60.0
+    if unit_accession == "UO:0000028" or normalized_unit in {"millisecond", "milliseconds"}:
+        return value / 60000.0
+    return value
