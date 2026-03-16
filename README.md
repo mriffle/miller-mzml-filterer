@@ -265,7 +265,27 @@ Help:
   - Also used when any other filter/selection combination leaves zero scans selected.
 - `5`: output path/write error.
 
-## Installation (Local Dev)
+## Installation
+
+Install from PyPI:
+
+```bash
+python3 -m pip install miller-mzml-filterer
+```
+
+Verify the CLI is available:
+
+```bash
+miller --help
+```
+
+Example run after installing with `pip`:
+
+```bash
+miller --scan-count 50 input.mzML output.subset_50.mzML
+```
+
+### Installation (Local Dev)
 
 ```bash
 python3 -m venv .venv
@@ -293,16 +313,27 @@ Smoke tests:
 
 ## Docker
 
-Build:
+Pull the published image for this GitHub project:
 
 ```bash
-docker build -t miller .
+docker pull ghcr.io/mriffle/miller-mzml-filterer:latest
 ```
 
 Run help:
 
 ```bash
-docker run --rm miller --help
+docker run --rm ghcr.io/mriffle/miller-mzml-filterer:latest --help
+```
+
+Run the tool in the current directory, as your current user and group, with the current directory mounted at `/work`:
+
+```bash
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  -v "$PWD:/work" \
+  -w /work \
+  ghcr.io/mriffle/miller-mzml-filterer:latest \
+  --scan-count 50 input.mzML output.subset_50.mzML
 ```
 
 ### Docker day-to-day usage (with mounts)
@@ -325,7 +356,7 @@ mkdir -p subsets
 docker run --rm \
   -v "$PWD/data:/data:ro" \
   -v "$PWD/subsets:/out" \
-  miller \
+  ghcr.io/mriffle/miller-mzml-filterer:latest \
   --scan-count 50 \
   /data/input.mzML /out/input.subset_50.mzML
 ```
@@ -337,7 +368,7 @@ docker run --rm \
   --user "$(id -u):$(id -g)" \
   -v "$PWD/data:/data:ro" \
   -v "$PWD/subsets:/out" \
-  miller \
+  ghcr.io/mriffle/miller-mzml-filterer:latest \
   --ms-level 2 --scan-count 10 \
   /data/input.mzML /out/input.ms2_10_plus_precursors.mzML
 ```
@@ -345,6 +376,13 @@ docker run --rm \
 Run tests inside the container:
 
 ```bash
-docker run --rm --entrypoint pytest miller \
+docker run --rm --entrypoint pytest ghcr.io/mriffle/miller-mzml-filterer:latest \
   --cov=miller --cov-report=term-missing tests/
+```
+
+If you want to build the image locally during development instead of pulling it from GHCR:
+
+```bash
+docker build -t miller .
+docker run --rm miller --help
 ```
