@@ -1,4 +1,6 @@
 """Miller package."""
 
-__all__ = ["__version__"]
-__version__ = "0.1.0"
+from ._version import get_version
+
+__all__ = ["__version__", "get_version"]
+__version__ = get_version()

@@ -255,6 +255,7 @@ Reproducibility:
 Help:
 
 - `--help` / `-h`: show usage and exit.
+- `--version` / `-v`: show the installed release version, or a git-derived development version when available.
 
 ## Exit Codes
 

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import click
 
+from ._version import get_version
 from .errors import InputFileError, MissingScanError, OutputWriteError, ScanCountError, UsageError
 from .reader import MzMLSource
 from .selector import select_scan_ids
@@ -24,7 +25,24 @@ from .validation import (
 from .writer import write_subset
 
 
+def _show_version(ctx: click.Context, param: click.Parameter, value: bool) -> None:
+    if not value or ctx.resilient_parsing:
+        return
+
+    click.echo(get_version())
+    ctx.exit()
+
+
 @click.command(context_settings={"help_option_names": ["--help", "-h"]})
+@click.option(
+    "-v",
+    "--version",
+    is_flag=True,
+    is_eager=True,
+    expose_value=False,
+    callback=_show_version,
+    help="Show the program version and exit.",
+)
 @click.option("--scan-count", type=int, default=None, help="Number of random scans to select.")
 @click.option(
     "--scan-percent",

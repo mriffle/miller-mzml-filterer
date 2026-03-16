@@ -21,6 +21,14 @@ def test_cli_scan_count(nonindexed_fixture: Path, tmp_path: Path) -> None:
     assert len(subset.scan_infos) >= 2
 
 
+def test_cli_version_option(monkeypatch) -> None:
+    runner = CliRunner()
+    monkeypatch.setattr("miller.cli.get_version", lambda: "1.2.3")
+    result = runner.invoke(main, ["--version"])
+    assert result.exit_code == 0
+    assert result.output == "1.2.3\n"
+
+
 def test_cli_rt_only_mode(nonindexed_fixture: Path, tmp_path: Path) -> None:
     out = tmp_path / "out.mzML"
     runner = CliRunner()

@@ -18,6 +18,8 @@ jobs:
         python-version: ["3.10", "3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
@@ -56,6 +58,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Build image
         run: docker build -t miller .
       - name: Run tests in container
@@ -68,6 +72,8 @@ jobs:
     needs: [test, docker-build]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -78,7 +84,7 @@ jobs:
       - name: Build docker image
         run: |
           VERSION=${GITHUB_REF_NAME}
-          docker build -t ghcr.io/${{ github.repository }}:${VERSION} .
+          docker build --build-arg MILLER_VERSION=${VERSION#v} -t ghcr.io/${{ github.repository }}:${VERSION} .
           docker tag ghcr.io/${{ github.repository }}:${VERSION} ghcr.io/${{ github.repository }}:latest
       - name: Login to GHCR
         uses: docker/login-action@v3
