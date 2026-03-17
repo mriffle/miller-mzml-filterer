@@ -60,7 +60,7 @@ Randomly select 5% of scans:
 miller --scan-percent 5 input.mzML output.mzML
 ```
 
-Select only MS2 scans (precursor MS1 scans are included automatically):
+Select 10 random MS2 scans (precursor MS1 scans are included automatically):
 
 ```bash
 miller --ms-level 2 --scan-count 10 input.mzML output.mzML
@@ -102,7 +102,7 @@ docker run --rm \
   --scan-percent 5 input.mzML output.mzML
 ```
 
-Select only MS2 scans:
+Select 10 random MS2 scans:
 
 ```bash
 docker run --rm \
