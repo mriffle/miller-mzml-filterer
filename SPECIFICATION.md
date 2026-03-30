@@ -37,7 +37,7 @@ Production mzML files are often hundreds of MB to multiple GB. Automated workflo
   - `--rt-range-end END`
   - `--rt-window-percent P`
   - `--scan-exclude-file PATH` (one scan ID per line, no header)
-  - `--ms-level L1,L2,...` (valid only with random mode: `--scan-count`/`--scan-percent`)
+  - `--ms-level L1,L2,...` (valid with random mode: `--scan-count`/`--scan-percent`, or with `--rt-window-percent`)
   - `--include-precursors / --no-include-precursors` (default enabled)
   - `--indexed / --no-index` (default follows source)
   - `--compression source|zlib|none` (default `source`)
@@ -70,7 +70,7 @@ Production mzML files are often hundreds of MB to multiple GB. Automated workflo
   - If any scan ID appears in both include and exclude files, fail with usage error.
 - Exclude-only mode:
   - If none of `--scan-count`, `--scan-percent`, or `--scan-include-file` are supplied, start from all scans, then apply retention-time filtering and remove exclusions.
-  - This mode cannot be combined with `--ms-level`.
+  - This mode cannot be combined with `--ms-level` unless `--rt-window-percent` is also provided.
 - If the applied filters/selectors produce zero scans, fail with a descriptive error.
 
 Filter order:

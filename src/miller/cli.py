@@ -74,7 +74,7 @@ def _show_version(ctx: click.Context, param: click.Parameter, value: bool) -> No
     "--ms-level",
     type=str,
     default=None,
-    help='Comma-separated MS levels to include (e.g., "1" or "1,2"). Only valid with random selection.',
+    help='Comma-separated MS levels to include (e.g., "1" or "1,2"). Valid with random selection or --rt-window-percent.',
 )
 @click.option("--include-precursors/--no-include-precursors", default=True, show_default=True)
 @click.option("--indexed/--no-index", default=None, help="Force indexed or non-indexed output.")

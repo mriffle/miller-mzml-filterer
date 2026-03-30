@@ -40,9 +40,10 @@ def validate_selection_mode(
             "--ms-level is only valid with random selection (--scan-count or --scan-percent) "
             "and cannot be used with --scan-include-file."
         )
-    if ms_level and not (has_count or has_percent):
+    if ms_level and not (has_count or has_percent or rt_window_percent is not None):
         raise UsageError(
-            "--ms-level is only valid with random selection (--scan-count or --scan-percent)."
+            "--ms-level is only valid with random selection (--scan-count or --scan-percent) "
+            "or with --rt-window-percent."
         )
 
 

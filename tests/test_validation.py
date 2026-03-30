@@ -48,6 +48,10 @@ def test_validate_selection_mode_rejects_ms_level_with_exclude_only() -> None:
         validate_selection_mode(None, None, None, Path("exclude.txt"), None, None, None, "2")
 
 
+def test_validate_selection_mode_accepts_ms_level_with_rt_window_percent() -> None:
+    validate_selection_mode(None, None, None, None, None, None, 25.0, "1")
+
+
 def test_ensure_writable_output_parent_missing(tmp_path: Path) -> None:
     with pytest.raises(PermissionError):
         ensure_writable_output(tmp_path / "missing" / "out.mzML")
