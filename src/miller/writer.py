@@ -33,9 +33,13 @@ def write_subset(
         spectrum_list.remove(child)
 
     selected_spectra = []
-    for scan_id in selected_scan_ids:
+    for new_index, scan_id in enumerate(selected_scan_ids):
         original = source.spectrum_by_id[scan_id]
         spec_copy = etree.fromstring(etree.tostring(original))
+        # The mzML index attribute is the zero-based, consecutive position of the
+        # spectrum within the list. Renumber it for the subset so random-access
+        # readers can resolve it; the source value is meaningless in the new file.
+        spec_copy.set("index", str(new_index))
         if compression in {"zlib", "none"}:
             _rewrite_spectrum_binary(spec_copy, compression)
         selected_spectra.append(spec_copy)
@@ -49,7 +53,12 @@ def write_subset(
         rebuilt = rebuild_chromatogram_list(source_chroms, selected_spectra, compression=compression)
         for child in list(chrom_list):
             chrom_list.remove(child)
-        for chrom in rebuilt:
+        for new_index, chrom in enumerate(rebuilt):
+            # Keep chromatogram indices consecutive too, but only touch the
+            # attribute when the source already carried one (avoid adding an
+            # index to sources that omit it).
+            if chrom.get("index") is not None:
+                chrom.set("index", str(new_index))
             chrom_list.append(chrom)
         chrom_list.set("count", str(len(rebuilt)))
 

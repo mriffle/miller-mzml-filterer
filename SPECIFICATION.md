@@ -1,8 +1,8 @@
 # Miller — mzML Test Data Generator Specification
 
-Version: 1.1  
-Status: Draft  
-Date: 2026-02-24
+Version: 1.2  
+Status: Released  
+Date: 2026-06-17
 
 ## 1. Overview
 
@@ -102,6 +102,8 @@ When disabled:
 - Emit valid mzML parseable by compliant readers.
 - Preserve metadata sections under `<mzML>` and `<run>` except for modified spectrum/chromatogram content.
 - Update `spectrumList/@count` to final included spectrum count.
+- Renumber each output `<spectrum>` `@index` to a zero-based, consecutive value in output document order; the source index is not meaningful in the subset. Renumber `<chromatogram>` `@index` likewise when present. Preserve each spectrum's nativeID (`@id`) unchanged.
+- For indexed output, regenerate `<indexList>`/`<indexListOffset>` from the final byte layout so random-access consumers (e.g. MSFTBX / `umich.ms`) resolve spectra correctly.
 - Recalculate TIC/BPC if present; pass through other chromatograms.
 - Support indexed and non-indexed output.
 - Apply selected compression behavior.

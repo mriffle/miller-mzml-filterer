@@ -13,7 +13,7 @@ Miller works with both **DDA** and **DIA** data and is useful in a variety of sc
 - Include or exclude scans based on scan number or retention-time range.
 - Operate on specific MS levels (e.g. MS1, MS2).
 - **Precursor inclusion** (default on) — if an MSn scan references a precursor via `spectrumRef`, the full precursor chain is included automatically.
-- Preserves run-level sections and metadata; updates `spectrumList/@count`.
+- Preserves run-level sections and metadata; updates `spectrumList/@count` and renumbers spectrum `index` attributes so the output is a valid, random-access-safe indexed mzML (works with index-based readers such as MSFTBX / PDV / FragPipe).
 - Recalculates TIC (`MS:1000235`) and BPC (`MS:1000628`) from retained spectra when present.
 - Indexed or non-indexed mzML output, defaulting to the source unless overridden.
 - Binary array compression control: `source`, `zlib`, or `none`.
